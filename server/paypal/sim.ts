@@ -81,6 +81,7 @@ async function reauthorize(authId: string, body: Body): Promise<Out> {
 async function payout(_: string, body: Body): Promise<Out> {
   const receiver = String(body.items[0].receiver);
   if (receiver.includes('fail-payout')) return fail('RECEIVER_UNREGISTERED');
+  if (receiver.includes('no-rail')) return { status: 403, body: { name: 'PAYOUT_NOT_AVAILABLE', message: 'You live in a country that is not allowed to send this payout.' } };
   const batch = id('SIMPAY');
   await put(`payout:${batch}`, { receiver });
   return { status: 201, body: { batch_header: { payout_batch_id: batch, batch_status: 'PENDING' } } };

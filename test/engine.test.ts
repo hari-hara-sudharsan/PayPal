@@ -174,6 +174,21 @@ describe('payout confirmation', () => {
     expect(await count(pact.id, 'PAYOUT_CONFIRMED')).toBe(1);
   });
 
+  it('keeps a real capture and records a debt when the account cannot send Payouts', async () => {
+    const { pact, ms } = await funded({ worker_email: 'no-rail@x.co' });
+    await E.submitWork(ms[0]!.id, WORK, null);
+    await E.approve(ms[0]!.id);
+    const m = await M(ms[0]!.id);
+    expect(m.status).toBe('RELEASED');
+    expect(m.payout_status).toBe('OWED');
+    expect(m.payout_id).toBeNull();
+    expect((await P(pact.id)).captured_cents).toBe(10_000);
+    expect(await count(pact.id, 'PAID_OUT')).toBe(0);
+    expect(await count(pact.id, 'PAYOUT_OWED')).toBe(1);
+    await E.forfeit(ms[1]!.id, 'worker');
+    expect((await P(pact.id)).status).toBe('SETTLED');
+  });
+
   it('never calls an unclaimed payout confirmed', async () => {
     const { pact, id } = await paid('unclaimed@x.co');
     expect((await M(id)).payout_status).toBe('UNCLAIMED');

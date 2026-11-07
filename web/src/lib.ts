@@ -90,6 +90,6 @@ export const LEDGER_LABEL: Record<string, string> = {
   HOLD_RELEASED: 'Hold released', PACT_SETTLED: 'Settled', DISPUTE_OPENED: 'Dispute opened',
   DISPUTE_RESPONSE: 'Response filed', TRIBUNAL_CONVENED: 'Tribunal convened', TRIBUNAL_STEP: 'Tribunal turn',
   VERDICT: 'Verdict', ESCALATED: 'Sent to a person', HOLD_RENEWED: 'Hold renewed', HOLD_RENEWAL_FAILED: 'Renewal failed',
-  PAYOUT_CONFIRMED: 'Payout confirmed', PAYOUT_UNCLAIMED: 'Payout unclaimed', PAYOUT_REVERSED: 'Payout reversed',
+  PAYOUT_OWED: 'Owed to worker', PAYOUT_CONFIRMED: 'Payout confirmed', PAYOUT_UNCLAIMED: 'Payout unclaimed', PAYOUT_REVERSED: 'Payout reversed',
   RECOVERED: 'Recovered after restart', CAPTURE_FAILED: 'Capture failed', PAYOUT_FAILED: 'Payout failed', WEBHOOK: 'PayPal webhook',
 };

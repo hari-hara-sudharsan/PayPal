@@ -185,6 +185,10 @@ export async function settle(milestoneId: string, awardCents: number, actor: str
   await executeMoney(m.id, actor, reason);
 }
 
+/** The account itself cannot send Payouts, so retrying is pointless. */
+const isPayoutRailClosed = (err: unknown) =>
+  err instanceof PayPalError && (err.body as { name?: string } | null)?.name === 'PAYOUT_NOT_AVAILABLE';
+
 async function executeMoney(milestoneId: string, actor: string, reason: string) {
   const m = await getMilestone(milestoneId);
   const pact = (await getPact(m.pact_id))!;
@@ -213,6 +217,13 @@ async function executeMoney(milestoneId: string, actor: string, reason: string) 
     await record({ pact_id: pact.id, milestone_id: m.id, type: 'PAID_OUT', actor: 'paypal', amount_cents: award - fee, paypal_ref: payoutId, detail: `To ${pact.worker_email}` });
     if (fee && !m.payout_attempt) await record({ pact_id: pact.id, milestone_id: m.id, type: 'PLATFORM_FEE', actor: 'system', amount_cents: fee, detail: `${config.feeBps / 100}%` });
   } catch (err) {
+    if (captureId && isPayoutRailClosed(err)) {
+      const fee = feeFor(award, config.feeBps);
+      await transition(m.id, ['RELEASING', 'PAYOUT_FAILED'], 'RELEASED', { payout_status: 'OWED' });
+      await record({ pact_id: pact.id, milestone_id: m.id, type: 'PAYOUT_OWED', actor: 'paypal', amount_cents: award - fee, detail: 'PayPal does not allow this account to send Payouts. The capture stands, and this amount is owed to the worker.' });
+      if (fee && !m.payout_attempt) await record({ pact_id: pact.id, milestone_id: m.id, type: 'PLATFORM_FEE', actor: 'system', amount_cents: fee, detail: `${config.feeBps / 100}%` });
+      return closeIfDone(pact.id);
+    }
     const stage = captureId ? 'PAYOUT_FAILED' : 'CAPTURE_FAILED';
     await record({ pact_id: pact.id, milestone_id: m.id, type: stage, actor: 'paypal', amount_cents: award, detail: (err as Error).message.slice(0, 240) });
     // A failed capture moved nothing, so the case returns for a person. A failed payout keeps

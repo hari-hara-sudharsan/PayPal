@@ -64,7 +64,23 @@ console.log(`     payouts scope: ${scopes.includes('payouts') ? 'present' : 'NOT
 const appOrder = await step('create order exactly as the app does', () => paypal.createOrder({ pactId: `check_${run}`, description: 'Sandbox check', cents: 1000, currency: 'USD' }), (o) => `${o.status}, approval link ${o.links?.some((l) => l.rel === 'payer-action') ? 'present' : 'MISSING'}`);
 void appOrder;
 
-const order = await step('authorize a $100 hold with the test card', () => cardOrder(10_000), (o) => o.status);
+/** Waits for a person to approve at PayPal, then authorizes. Used when cards are unavailable. */
+async function approvedOrder(cents: number) {
+  const created = await paypal.createOrder({ pactId: `approve_${run}`, description: 'Pact sandbox check', cents, currency: 'USD' });
+  console.log(`\nAPPROVE HERE: ${created.links?.find((l) => l.rel === 'payer-action')?.href}\n`);
+  const end = Date.now() + 15 * 60_000;
+  const { access_token } = await token();
+  while (Date.now() < end) {
+    const res = await fetch(`${config.paypal.base}/v2/checkout/orders/${created.id}`, { headers: { Authorization: `Bearer ${access_token}` } });
+    const body = await res.json() as { status: string };
+    if (body.status === 'APPROVED') return paypal.authorizeOrder(created.id);
+    await new Promise((r) => setTimeout(r, 4000));
+  }
+  throw new Error('Nobody approved within 15 minutes');
+}
+
+const useApproval = process.argv.includes('--approve');
+const order = await step('authorize a $100 hold', () => (useApproval ? approvedOrder(10_000) : cardOrder(10_000)), (o) => o.status);
 const hold = order && authorizationOf(order);
 console.log(`     authorization: ${hold ? `${hold.status}, expires ${hold.expiration_time}` : 'none'}`);
 
@@ -81,7 +97,7 @@ if (hold) {
   }, (s) => `refused with ${s}`);
 }
 
-const renew = await step('authorize a second hold', () => cardOrder(5000), (o) => o.status);
+const renew = useApproval ? undefined : await step('authorize a second hold', () => cardOrder(5000), (o) => o.status);
 const second = renew && authorizationOf(renew);
 if (second) {
   await step('reauthorize inside the honor period', () => paypal.reauthorize(second.id, 5000, 'USD', `reauth-${run}`), (r) => `${r.status} ${r.id}`);

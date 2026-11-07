@@ -293,7 +293,7 @@ function Countdown({ at, amount, limit, currency }: { at: number | null; amount:
 
 function PaidNote({ m, pact }: { m: MilestoneView; pact: PactView }) {
   const refs = pact.ledger.filter((r) => r.milestone_id === m.id && (r.type === 'CAPTURED' || r.type === 'PAID_OUT'));
-  const settled = { SUCCESS: 'Confirmed by PayPal', UNCLAIMED: 'Sent. Waiting for the worker to claim it at PayPal' }[m.payout_status ?? ''] ?? 'Sent. Waiting for PayPal to confirm';
+  const settled = { SUCCESS: 'Confirmed by PayPal', UNCLAIMED: 'Sent. Waiting for the worker to claim it at PayPal', OWED: 'Captured at PayPal. This sandbox account cannot send Payouts, so the amount is recorded as owed to the worker' }[m.payout_status ?? ''] ?? 'Sent. Waiting for PayPal to confirm';
   return (
     <div className="notice good">
       <strong>{money(m.awarded_cents ?? 0, pact.currency)} released.</strong> {settled}.
