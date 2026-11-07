@@ -23,6 +23,12 @@ const TONE: Record<string, string> = {
   PAID_OUT: 'positive', CAPTURED: 'accent', FUNDS_HELD: 'accent', VERDICT: 'accent', SHIELD_ALERT: 'negative',
   VERIFIED_FAIL: 'negative', VERIFIED_HOLD: 'warning', VERIFIED_PASS: 'positive', DISPUTE_OPENED: 'warning', HOLD_RELEASED: 'neutral',
 };
+const ACTOR: Record<string, string> = { advocate_worker: 'Worker advocate', advocate_buyer: 'Buyer advocate', judge: 'Arbiter', paypal: 'PayPal', shield: 'Shield' };
+
+// The grid treats a changed prop as new configuration, so these must keep one identity.
+const DEFAULT_COL: ColDef<LedgerEntry> = { sortable: true, resizable: true };
+const rowId = (p: { data: LedgerEntry }) => String(p.data.seq);
+
 const QUESTIONS = ['What did workers get paid over $100?', 'Show every attack the shield caught', 'Which rulings did the AI make?'];
 
 export function Ledger() {
@@ -48,8 +54,11 @@ export function Ledger() {
       if (n.data?.type === 'CAPTURED') out.captured += n.data.amount_cents ?? 0;
       if (n.data?.type === 'PAID_OUT') out.paid += n.data.amount_cents ?? 0;
     });
-    setVisible(out);
+    // Same values must keep the same object: a new one re-renders, which updates the grid again.
+    setVisible((prev) => (prev.captured === out.captured && prev.paid === out.paid && prev.count === out.count ? prev : out));
   }, []);
+
+  const filterActive = useCallback(() => filterRef.current !== null, []);
 
   const applyFilter = (f: Filter | null) => {
     filterRef.current = f;
@@ -76,7 +85,7 @@ export function Ledger() {
         <a href={`/p/${p.data.pact_id}`} onClick={(e) => { e.preventDefault(); go(`/p/${p.data.pact_id}`); }}>{p.value}</a>
       ),
     },
-    { headerName: 'By', field: 'actor', width: 130, filter: true, valueFormatter: (p) => String(p.value).replace(/^ai:.*/, 'AI') },
+    { headerName: 'By', field: 'actor', width: 150, filter: true, valueFormatter: (p) => ACTOR[p.value] ?? String(p.value).replace(/^ai:.*/, 'AI') },
     {
       headerName: 'Amount', field: 'amount_cents', width: 120, type: 'rightAligned', filter: 'agNumberColumnFilter',
       valueFormatter: (p) => (p.value == null ? '–' : money(p.value, p.data?.currency)), cellClass: ['ag-right-aligned-cell', 'num'],
@@ -142,10 +151,10 @@ export function Ledger() {
         </div>
         <div style={{ height: 560 }}>
           <AgGridReact<LedgerEntry>
-            theme={gridTheme} rowData={rows} columnDefs={columns} defaultColDef={{ sortable: true, resizable: true }}
-            getRowId={(p) => String(p.data.seq)} animateRows tooltipShowDelay={300}
+            theme={gridTheme} rowData={rows} columnDefs={columns} defaultColDef={DEFAULT_COL}
+            getRowId={rowId} animateRows tooltipShowDelay={300}
             onGridReady={(e) => { grid.current = e.api; }}
-            isExternalFilterPresent={() => filterRef.current !== null}
+            isExternalFilterPresent={filterActive}
             doesExternalFilterPass={passes}
             onModelUpdated={tally}
           />

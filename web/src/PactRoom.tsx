@@ -356,28 +356,32 @@ function Decisions({ m, pact, base, act }: { m: MilestoneView; pact: PactView; b
   );
 }
 
+/** Module level on purpose: defined inside Tribunal, every poll would remount it and replay the fade. */
+function Lane({ steps, name, cls, waiting }: { steps: MilestoneView['tribunal']; name: string; cls: string; waiting: boolean }) {
+  return (
+    <div className="lane">
+      <div className="who"><span className={`face ${cls}`}>{name[0]}</span> Advocate for {name}</div>
+      {steps.map((s) => <div key={s.id} className="speech"><b>{s.round}</b>{s.text}</div>)}
+      {waiting && steps.length < 2 && <span className="thinking">Preparing argument</span>}
+    </div>
+  );
+}
+
 function Tribunal({ m, pact }: { m: MilestoneView; pact: PactView }) {
-  const lane = (who: 'advocate_worker' | 'advocate_buyer') => m.tribunal.filter((s) => s.speaker === who);
+  const worker = m.tribunal.filter((s) => s.speaker === 'advocate_worker');
+  const buyer = m.tribunal.filter((s) => s.speaker === 'advocate_buyer');
   const judge = m.tribunal.find((s) => s.speaker === 'judge');
   const verdict = pact.ledger.find((r) => r.milestone_id === m.id && r.type === 'VERDICT');
   const inSession = m.status === 'IN_TRIBUNAL' || m.status === 'CONTESTED';
-
-  const Lane = ({ who, name, cls }: { who: 'advocate_worker' | 'advocate_buyer'; name: string; cls: string }) => (
-    <div className="lane">
-      <div className="who"><span className={`face ${cls}`}>{name[0]}</span> Advocate for {name}</div>
-      {lane(who).map((s) => <div key={s.id} className="speech"><b>{s.round}</b>{s.text}</div>)}
-      {inSession && lane(who).length < 2 && <span className="thinking">Preparing argument</span>}
-    </div>
-  );
 
   return (
     <div className="court" aria-label="Tribunal">
       <div className="row between"><h3>Tribunal</h3>{m.tribunal[0] && <span className="tiny muted">{m.tribunal[0].model}</span>}</div>
       <div className="lanes">
-        <Lane who="advocate_worker" name={pact.worker_name} cls="worker" />
-        <Lane who="advocate_buyer" name={pact.buyer_name} cls="buyer" />
+        <Lane steps={worker} name={pact.worker_name} cls="worker" waiting={inSession} />
+        <Lane steps={buyer} name={pact.buyer_name} cls="buyer" waiting={inSession} />
       </div>
-      {inSession && lane('advocate_buyer').length === 2 && !judge && <span className="thinking">The arbiter is writing the ruling</span>}
+      {inSession && buyer.length === 2 && !judge && <span className="thinking">The arbiter is writing the ruling</span>}
       {judge && (
         <div className="ruling">
           <div className="who" style={{ marginBottom: 8 }}><span className="face judge">A</span> Arbiter's ruling</div>

@@ -32,6 +32,10 @@ function buildBooks(rows: LedgerEntry[], chains: Record<string, boolean>): Book[
     .map((b) => ({ ...b, open: b.held - b.captured - b.returned, owed: b.captured - b.paid - b.fee }));
 }
 
+// The grid treats a changed prop as new configuration, so these must keep one identity.
+const DEFAULT_COL: ColDef<Book> = { sortable: true, resizable: true };
+const rowId = (p: { data: Book }) => p.data.pact_id || 'total';
+
 const cents = (key: keyof Book, header: string, width = 118): ColDef<Book> => ({
   headerName: header, field: key, width, type: 'rightAligned', filter: 'agNumberColumnFilter',
   cellClass: ['ag-right-aligned-cell', 'num'], valueFormatter: (p) => money(Number(p.value ?? 0), p.data?.currency),
@@ -79,7 +83,7 @@ export function Reconciliation({ rows, chains }: { rows: LedgerEntry[]; chains: 
       <div style={{ height: 500, marginTop: 8 }}>
         <AgGridReact<Book>
           theme={gridTheme} rowData={books} columnDefs={columns} pinnedBottomRowData={totals}
-          defaultColDef={{ sortable: true, resizable: true }} getRowId={(p) => p.data.pact_id || 'total'} animateRows
+          defaultColDef={DEFAULT_COL} getRowId={rowId} animateRows
         />
       </div>
     </>
