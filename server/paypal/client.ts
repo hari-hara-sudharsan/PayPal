@@ -1,5 +1,9 @@
 import { config } from '../config';
 import { toValue } from '../money';
+import { simFetch } from './sim';
+
+const send = (url: string, init: RequestInit) =>
+  (config.paypal.mode === 'sim' ? simFetch(url, init) : fetch(url, init));
 
 export class PayPalError extends Error {
   constructor(public status: number, public body: unknown, public op: string) {
@@ -12,7 +16,7 @@ let token: { value: string; expires: number } | null = null;
 async function accessToken(): Promise<string> {
   if (token && token.expires > Date.now() + 60_000) return token.value;
   const basic = Buffer.from(`${config.paypal.clientId}:${config.paypal.secret}`).toString('base64');
-  const res = await fetch(`${config.paypal.base}/v1/oauth2/token`, {
+  const res = await send(`${config.paypal.base}/v1/oauth2/token`, {
     method: 'POST',
     headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded' },
     body: 'grant_type=client_credentials',
@@ -24,7 +28,7 @@ async function accessToken(): Promise<string> {
 }
 
 async function call<T>(op: string, method: string, path: string, body?: unknown, requestId?: string): Promise<T> {
-  const res = await fetch(`${config.paypal.base}${path}`, {
+  const res = await send(`${config.paypal.base}${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${await accessToken()}`,

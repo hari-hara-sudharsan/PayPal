@@ -41,7 +41,7 @@ if (meta.paypal_mode !== 'sim') {
   say('demo', 'Open the link above and approve in PayPal, then re-run get_pact. Stopping here.');
   process.exit(0);
 }
-await fetch(`${BASE}/sim-paypal/sim/approve/${funding.order_id}`, { method: 'POST' });
+await fetch(`${BASE}/sim-paypal/sim/approve/${funding.order_id}`, { method: "POST" });
 await fetch(`${BASE}/api/paypal/return?pact=${pact_id}&token=${funding.order_id}`, { redirect: 'manual' });
 say('demo', 'Simulated the human approval (emulator only).');
 

@@ -5,3 +5,7 @@ dist
 *.db-*
 data/
 .taste-skill/
+.vercel
+.env*.local
+
+.vercel

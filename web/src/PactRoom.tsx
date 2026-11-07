@@ -26,11 +26,12 @@ export function PactRoom({ id, meta }: { id: string; meta: Meta | null }) {
 
   useEffect(load, [load]);
 
+  // Polling also drives time-based release on serverless, so it runs fast only while something is due.
+  const active = pact?.milestones.some((m) => ['VERIFYING', 'IN_TRIBUNAL', 'RELEASING', 'PASSED', 'CONTESTED'].includes(m.status));
   useEffect(() => {
-    const es = new EventSource(`/api/pacts/${id}/stream`);
-    es.onmessage = () => load();
-    return () => es.close();
-  }, [id, load]);
+    const timer = setInterval(load, active ? 2000 : 8000);
+    return () => clearInterval(timer);
+  }, [load, active]);
 
   const act = useCallback(async (path: string, body?: unknown) => {
     setError('');

@@ -81,7 +81,7 @@ const offlineArgument = (side: Role) => ({
 });
 
 /** Runs the hearing. `onStep` saves each turn as it finishes so the courtroom page fills in live. */
-export async function holdTribunal(c: Case, onStep: (s: TribunalStep) => void): Promise<Ruling> {
+export async function holdTribunal(c: Case, onStep: (s: TribunalStep) => Promise<void>): Promise<Ruling> {
   const record = recordFor(c);
   let seq = 0;
   const step = (speaker: TribunalStep['speaker'], round: string, text: string) => onStep({
@@ -97,19 +97,19 @@ export async function holdTribunal(c: Case, onStep: (s: TribunalStep) => void): 
     argue('worker', `${record}\n\nGive your opening argument.`),
     argue('buyer', `${record}\n\nGive your opening argument.`),
   ]);
-  step('advocate_worker', 'Opening', w1.argument);
-  step('advocate_buyer', 'Opening', b1.argument);
+  await step('advocate_worker', 'Opening', w1.argument);
+  await step('advocate_buyer', 'Opening', b1.argument);
 
   const [w2, b2] = await Promise.all([
     argue('worker', `${record}\n\nThe buyer's advocate argued:\n${b1.argument}\n\nGive your rebuttal.`),
     argue('buyer', `${record}\n\nThe worker's advocate argued:\n${w1.argument}\n\nGive your rebuttal.`),
   ]);
-  step('advocate_worker', 'Rebuttal', w2.argument);
-  step('advocate_buyer', 'Rebuttal', b2.argument);
+  await step('advocate_worker', 'Rebuttal', w2.argument);
+  await step('advocate_buyer', 'Rebuttal', b2.argument);
 
   const ruling = await ask(RulingSchema, JUDGE,
     `${record}\n\nWorker's advocate:\n${w1.argument}\n${w2.argument}\n\nBuyer's advocate:\n${b1.argument}\n${b2.argument}\n\nIssue your ruling.`,
     () => offlineRuling(c));
-  step('judge', 'Ruling', ruling.ruling);
+  await step('judge', 'Ruling', ruling.ruling);
   return ruling;
 }

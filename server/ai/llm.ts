@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod';
 import { config } from '../config';
+import { chargeModelCall } from '../limits';
 
 export type Provider = 'claude' | 'openai-compatible' | 'offline';
 
@@ -82,5 +83,6 @@ export async function ask<S extends z.ZodType>(
 ): Promise<z.infer<S>> {
   const p = provider();
   if (p === 'offline') return offline();
+  await chargeModelCall();
   return p === 'claude' ? askClaude(schema, system, user) : askCompatible(schema, system, user);
 }

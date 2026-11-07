@@ -1,0 +1,7 @@
+node_modules
+dist
+data
+.taste-skill
+.env
+.env.*
+.vercel

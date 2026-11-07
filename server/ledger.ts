@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import { EventEmitter } from 'node:events';
 import { db } from './db';
 import { now } from './clock';
 
@@ -9,11 +8,8 @@ export interface LedgerRow {
   prev_hash: string; hash: string;
 }
 
-/** Fires on every ledger write; the SSE stream relays it to open pages. */
-export const bus = new EventEmitter();
-bus.setMaxListeners(0);
-
 const GENESIS = '0'.repeat(64);
+const MAX_APPEND_ATTEMPTS = 8;
 
 const digest = (r: Omit<LedgerRow, 'seq' | 'hash'>) =>
   crypto.createHash('sha256').update(JSON.stringify([
@@ -21,31 +17,38 @@ const digest = (r: Omit<LedgerRow, 'seq' | 'hash'>) =>
   ])).digest('hex');
 
 export const ledgerFor = (pactId: string) =>
-  db.prepare('SELECT * FROM ledger WHERE pact_id = ? ORDER BY seq').all(pactId) as unknown as LedgerRow[];
+  db.all<LedgerRow>('SELECT * FROM ledger WHERE pact_id = ? ORDER BY seq', pactId);
 
-/** Append-only and hash-chained per pact: altering any row breaks every hash after it. */
-export function record(e: {
+/**
+ * Append-only and hash-chained per pact: altering any row breaks every hash after it.
+ * Two writers can read the same tip, so UNIQUE (pact_id, prev_hash) lets exactly one of them
+ * extend it. The loser rereads the tip and tries again, which keeps the chain a single line.
+ */
+export async function record(e: {
   pact_id: string; milestone_id?: string | null; type: string; actor: string;
   amount_cents?: number | null; paypal_ref?: string | null; detail?: string;
-}): LedgerRow {
-  const last = db.prepare('SELECT hash FROM ledger WHERE pact_id = ? ORDER BY seq DESC LIMIT 1')
-    .get(e.pact_id) as { hash: string } | undefined;
-  const row = {
-    pact_id: e.pact_id, milestone_id: e.milestone_id ?? null, type: e.type, actor: e.actor,
-    amount_cents: e.amount_cents ?? null, paypal_ref: e.paypal_ref ?? null, detail: e.detail ?? '',
-    at: now(), prev_hash: last?.hash ?? GENESIS,
-  };
-  const hash = digest(row);
-  const { lastInsertRowid } = db.prepare(
-    'INSERT INTO ledger (pact_id, milestone_id, type, actor, amount_cents, paypal_ref, detail, at, prev_hash, hash) VALUES (?,?,?,?,?,?,?,?,?,?)',
-  ).run(row.pact_id, row.milestone_id, row.type, row.actor, row.amount_cents, row.paypal_ref, row.detail, row.at, row.prev_hash, hash);
-  const saved = { ...row, seq: Number(lastInsertRowid), hash };
-  bus.emit('event', saved);
-  return saved;
+}): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    const last = await db.get<{ hash: string }>('SELECT hash FROM ledger WHERE pact_id = ? ORDER BY seq DESC LIMIT 1', e.pact_id);
+    const row = {
+      pact_id: e.pact_id, milestone_id: e.milestone_id ?? null, type: e.type, actor: e.actor,
+      amount_cents: e.amount_cents ?? null, paypal_ref: e.paypal_ref ?? null, detail: e.detail ?? '',
+      at: now(), prev_hash: last?.hash ?? GENESIS,
+    };
+    try {
+      await db.run(
+        'INSERT INTO ledger (pact_id, milestone_id, type, actor, amount_cents, paypal_ref, detail, at, prev_hash, hash) VALUES (?,?,?,?,?,?,?,?,?,?)',
+        row.pact_id, row.milestone_id, row.type, row.actor, row.amount_cents, row.paypal_ref, row.detail, row.at, row.prev_hash, digest(row),
+      );
+      return;
+    } catch (err) {
+      if (!/UNIQUE/i.test(String(err)) || attempt >= MAX_APPEND_ATTEMPTS) throw err;
+    }
+  }
 }
 
-export function verifyChain(pactId: string): { intact: boolean; length: number; brokenAt: number | null } {
-  const rows = ledgerFor(pactId);
+export async function verifyChain(pactId: string): Promise<{ intact: boolean; length: number; brokenAt: number | null }> {
+  const rows = await ledgerFor(pactId);
   let prev = GENESIS;
   for (const r of rows) {
     if (r.prev_hash !== prev || digest(r) !== r.hash) return { intact: false, length: rows.length, brokenAt: r.seq };
