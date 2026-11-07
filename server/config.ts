@@ -25,6 +25,12 @@ export const config = {
     webhookId: env.PAYPAL_WEBHOOK_ID ?? '',
     base: live ? 'https://api-m.sandbox.paypal.com' : 'sim://paypal',
   },
+  /** Public test logins for judges. Sandbox accounts hold no real money. */
+  sandbox: {
+    buyerEmail: env.SANDBOX_BUYER_EMAIL ?? '',
+    buyerPassword: env.SANDBOX_BUYER_PASSWORD ?? '',
+    workerEmail: env.SANDBOX_WORKER_EMAIL ?? '',
+  },
   ai: {
     anthropicKey: env.ANTHROPIC_API_KEY ?? '',
     openaiKey: env.OPENAI_API_KEY ?? '',

@@ -158,6 +158,47 @@ describe('settlement safety', () => {
   });
 });
 
+describe('payout confirmation', () => {
+  const paid = async (worker_email: string) => {
+    const { pact, ms } = await funded({ worker_email });
+    await E.submitWork(ms[0]!.id, WORK, null);
+    await E.approve(ms[0]!.id);
+    await E.sweep(pact.id);
+    return { pact, id: ms[0]!.id };
+  };
+
+  it('records confirmation once PayPal settles, and only once', async () => {
+    const { pact, id } = await paid('ben@x.co');
+    await Promise.all([E.sweep(pact.id), E.sweep(pact.id)]);
+    expect((await M(id)).payout_status).toBe('SUCCESS');
+    expect(await count(pact.id, 'PAYOUT_CONFIRMED')).toBe(1);
+  });
+
+  it('never calls an unclaimed payout confirmed', async () => {
+    const { pact, id } = await paid('unclaimed@x.co');
+    expect((await M(id)).payout_status).toBe('UNCLAIMED');
+    expect(await count(pact.id, 'PAYOUT_CONFIRMED')).toBe(0);
+  });
+
+  it('reverses a payout that bounces after acceptance, and retries as a new payout', async () => {
+    const { pact, id } = await paid('bounce@x.co');
+    expect(await status(id)).toBe('PAYOUT_FAILED');
+    expect(await count(pact.id, 'PAYOUT_REVERSED')).toBe(1);
+    const captured = (await P(pact.id)).captured_cents;
+
+    await db.run('UPDATE pacts SET worker_email = ? WHERE id = ?', 'ben@x.co', pact.id);
+    await E.retryPayout(id);
+    await E.sweep(pact.id);
+    const m = await M(id);
+    expect(m.status).toBe('RELEASED');
+    expect(m.payout_status).toBe('SUCCESS');
+    expect(await count(pact.id, 'PAID_OUT')).toBe(2);
+    expect(await count(pact.id, 'CAPTURED')).toBe(1);
+    expect(await count(pact.id, 'PLATFORM_FEE')).toBe(1);
+    expect((await P(pact.id)).captured_cents).toBe(captured);
+  });
+});
+
 describe('disputes', () => {
   const hearing = async (id: string) => {
     await E.fileResponse(id, 'worker', 'It meets the criteria.');

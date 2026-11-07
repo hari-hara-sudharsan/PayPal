@@ -21,7 +21,7 @@ interface Filter { types: string[]; min_amount: number | null; max_amount: numbe
 
 const TONE: Record<string, string> = {
   PAID_OUT: 'positive', CAPTURED: 'accent', FUNDS_HELD: 'accent', VERDICT: 'accent', SHIELD_ALERT: 'negative',
-  VERIFIED_FAIL: 'negative', VERIFIED_HOLD: 'warning', VERIFIED_PASS: 'positive', DISPUTE_OPENED: 'warning', HOLD_RELEASED: 'neutral',
+  VERIFIED_FAIL: 'negative', VERIFIED_HOLD: 'warning', VERIFIED_PASS: 'positive', DISPUTE_OPENED: 'warning', HOLD_RELEASED: 'neutral', PAYOUT_CONFIRMED: 'positive', PAYOUT_REVERSED: 'negative', PAYOUT_UNCLAIMED: 'warning',
 };
 const ACTOR: Record<string, string> = { advocate_worker: 'Worker advocate', advocate_buyer: 'Buyer advocate', judge: 'Arbiter', paypal: 'PayPal', shield: 'Shield' };
 

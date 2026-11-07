@@ -23,7 +23,7 @@ export interface Milestone {
   criteria: Criterion[]; status: MilestoneStatus; release_at: number | null;
   awarded_cents: number | null; capture_id: string | null; payout_id: string | null;
   contest_by: Role | null; contest_statement: string | null; response_statement: string | null;
-  convene_at: number | null;
+  convene_at: number | null; payout_status: string | null; payout_attempt: number;
 }
 
 export interface CriterionResult {

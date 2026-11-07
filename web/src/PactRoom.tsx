@@ -176,7 +176,19 @@ function Funding({ pact, meta, pactKey, reload }: { pact: PactView; meta: Meta |
     } catch (e) { setErr((e as Error).message); }
   };
 
-  if (meta?.paypal_mode === 'sandbox') return <><div ref={box} style={{ maxWidth: 360 }} />{err && <div className="notice bad">{err}</div>}</>;
+  if (meta?.paypal_mode === 'sandbox') {
+    return (
+      <>
+        <div ref={box} style={{ maxWidth: 360 }} />
+        {meta.sandbox_buyer && (
+          <p className="small muted" style={{ marginTop: 10 }}>
+            PayPal sandbox test buyer, no real money: <strong>{meta.sandbox_buyer.email}</strong> / <strong>{meta.sandbox_buyer.password}</strong>
+          </p>
+        )}
+        {err && <div className="notice bad">{err}</div>}
+      </>
+    );
+  }
   return (
     <div className="mode-sim row between">
       <span>Simulated PayPal approval. Add sandbox credentials to use real PayPal checkout.</span>
@@ -281,9 +293,10 @@ function Countdown({ at, amount, limit, currency }: { at: number | null; amount:
 
 function PaidNote({ m, pact }: { m: MilestoneView; pact: PactView }) {
   const refs = pact.ledger.filter((r) => r.milestone_id === m.id && (r.type === 'CAPTURED' || r.type === 'PAID_OUT'));
+  const settled = { SUCCESS: 'Confirmed by PayPal', UNCLAIMED: 'Sent. Waiting for the worker to claim it at PayPal' }[m.payout_status ?? ''] ?? 'Sent. Waiting for PayPal to confirm';
   return (
     <div className="notice good">
-      <strong>{money(m.awarded_cents ?? 0, pact.currency)} released.</strong>
+      <strong>{money(m.awarded_cents ?? 0, pact.currency)} released.</strong> {settled}.
       {refs.map((r) => <div key={r.seq} className="tiny" style={{ marginTop: 4 }}>{LEDGER_LABEL[r.type]}: {money(r.amount_cents ?? 0, pact.currency)} · <span className="hash">{r.paypal_ref}</span></div>)}
     </div>
   );

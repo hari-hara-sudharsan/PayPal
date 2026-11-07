@@ -91,6 +91,8 @@ export function apiRouter() {
       paypal_mode: config.paypal.mode,
       paypal_client_id: config.paypal.mode === 'sandbox' ? config.paypal.clientId : null,
       ai_provider: provider(), ai_model: modelName(), fee_bps: config.feeBps,
+      sandbox_buyer: config.sandbox.buyerEmail ? { email: config.sandbox.buyerEmail, password: config.sandbox.buyerPassword } : null,
+      sandbox_worker_email: config.sandbox.workerEmail || null,
     });
   });
 

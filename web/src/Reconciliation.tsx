@@ -23,6 +23,7 @@ function buildBooks(rows: LedgerEntry[], chains: Record<string, boolean>): Book[
     if (r.type === 'HOLD_RENEWED') continue;
     if (r.type === 'CAPTURED') b.captured += cents;
     if (r.type === 'PAID_OUT') b.paid += cents;
+    if (r.type === 'PAYOUT_REVERSED') b.paid -= cents;
     if (r.type === 'PLATFORM_FEE') b.fee += cents;
     if (r.type === 'HOLD_RELEASED') b.returned += cents;
     books.set(r.pact_id, b);

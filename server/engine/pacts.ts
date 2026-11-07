@@ -204,13 +204,14 @@ async function executeMoney(milestoneId: string, actor: string, reason: string) 
     }
     const fee = feeFor(award, config.feeBps);
     const payout = await paypal.payout({
-      batchId: `pact-${m.id}`, cents: award - fee, currency: pact.currency, receiver: pact.worker_email,
+      // Attempt in the id: a retry after a bounce must be a new payout, not a replay of the failed one.
+      batchId: `pact-${m.id}-${m.payout_attempt ?? 0}`, cents: award - fee, currency: pact.currency, receiver: pact.worker_email,
       note: `${pact.title}: ${m.title}`, itemId: m.id,
     });
     const payoutId = payout.batch_header.payout_batch_id;
-    await transition(m.id, ['RELEASING', 'PAYOUT_FAILED'], 'RELEASED', { payout_id: payoutId });
+    await transition(m.id, ['RELEASING', 'PAYOUT_FAILED'], 'RELEASED', { payout_id: payoutId, payout_status: null });
     await record({ pact_id: pact.id, milestone_id: m.id, type: 'PAID_OUT', actor: 'paypal', amount_cents: award - fee, paypal_ref: payoutId, detail: `To ${pact.worker_email}` });
-    if (fee) await record({ pact_id: pact.id, milestone_id: m.id, type: 'PLATFORM_FEE', actor: 'system', amount_cents: fee, detail: `${config.feeBps / 100}%` });
+    if (fee && !m.payout_attempt) await record({ pact_id: pact.id, milestone_id: m.id, type: 'PLATFORM_FEE', actor: 'system', amount_cents: fee, detail: `${config.feeBps / 100}%` });
   } catch (err) {
     const stage = captureId ? 'PAYOUT_FAILED' : 'CAPTURE_FAILED';
     await record({ pact_id: pact.id, milestone_id: m.id, type: stage, actor: 'paypal', amount_cents: award, detail: (err as Error).message.slice(0, 240) });
@@ -313,6 +314,47 @@ export async function convene(milestoneId: string) {
   await settle(m.id, award, 'tribunal', `Tribunal awarded ${ruling.award_pct}%`, ['IN_TRIBUNAL']);
 }
 
+// ---- Payout confirmation ---------------------------------------------------
+
+const PAYOUT_FAILED_STATES = ['FAILED', 'RETURNED', 'BLOCKED', 'DENIED', 'REFUNDED', 'REVERSED'];
+
+/** PayPal settles a payout after accepting it, so the ledger only says confirmed once it has. */
+async function confirmPayouts(pactId?: string) {
+  const pending = await db.all<{ id: string; pact_id: string; payout_id: string; payout_status: string | null; awarded_cents: number }>(
+    `SELECT id, pact_id, payout_id, payout_status, awarded_cents FROM milestones
+     WHERE status = 'RELEASED' AND payout_id IS NOT NULL
+       AND (payout_status IS NULL OR payout_status IN ('PENDING', 'PROCESSING', 'ONHOLD', 'NEW'))${pactId ? ' AND pact_id = ?' : ''}`,
+    ...(pactId ? [pactId] : []));
+
+  for (const m of pending) {
+    try {
+      const report = await paypal.payoutStatus(m.payout_id);
+      const item = report.items?.[0];
+      const state = item?.transaction_status ?? report.batch_header.batch_status;
+      if (state === (m.payout_status ?? '')) continue;
+      const failed = PAYOUT_FAILED_STATES.includes(state);
+
+      // Compare-and-set, so only one of several overlapping polls writes the ledger.
+      const { changes } = await db.run(
+        `UPDATE milestones SET payout_status = ?, status = ?, payout_id = ?, payout_attempt = payout_attempt + ?
+         WHERE id = ? AND payout_id = ? AND COALESCE(payout_status, '') = ?`,
+        state, failed ? 'PAYOUT_FAILED' : 'RELEASED', failed ? null : m.payout_id, failed ? 1 : 0, m.id, m.payout_id, m.payout_status ?? '');
+      if (changes !== 1) continue;
+
+      if (failed) {
+        const net = m.awarded_cents - feeFor(m.awarded_cents, config.feeBps);
+        await record({ pact_id: m.pact_id, milestone_id: m.id, type: 'PAYOUT_REVERSED', actor: 'paypal', amount_cents: net, paypal_ref: m.payout_id, detail: item?.errors?.message ?? state });
+      } else if (state === 'SUCCESS') {
+        await record({ pact_id: m.pact_id, milestone_id: m.id, type: 'PAYOUT_CONFIRMED', actor: 'paypal', paypal_ref: m.payout_id });
+      } else if (state === 'UNCLAIMED') {
+        await record({ pact_id: m.pact_id, milestone_id: m.id, type: 'PAYOUT_UNCLAIMED', actor: 'paypal', paypal_ref: m.payout_id, detail: 'Waiting for the worker to claim it at PayPal' });
+      }
+    } catch (err) {
+      console.error('payout status', m.id, (err as Error).message);
+    }
+  }
+}
+
 // ---- Time-based work -------------------------------------------------------
 
 /**
@@ -361,6 +403,8 @@ export async function sweep(pactId?: string) {
       if (!(err instanceof Conflict)) console.error('sweep', m.id, (err as Error).message);
     }
   }
+
+  await confirmPayouts(pactId);
 
   // Past PayPal's honor period a capture is less certain, so renew the hold on what is left.
   const stale = await db.all<Pact>(`SELECT p.* FROM pacts p WHERE p.status = 'ACTIVE' AND p.honor_expires_at < ?${scope}`, at, ...args);

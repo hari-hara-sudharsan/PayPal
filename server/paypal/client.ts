@@ -93,6 +93,11 @@ export const paypal = {
       }],
     }, p.batchId),
 
+  /** A batch is accepted first and settles later, so acceptance alone does not mean paid. */
+  payoutStatus: (batchId: string) =>
+    call<{ batch_header: { batch_status: string }; items?: { transaction_status?: string; errors?: { name?: string; message?: string } }[] }>(
+      'payout status', 'GET', `/v1/payments/payouts/${batchId}`),
+
   verifyWebhook: (p: { headers: Record<string, string | string[] | undefined>; event: unknown }) =>
     call<{ verification_status: string }>('verify webhook', 'POST', '/v1/notifications/verify-webhook-signature', {
       auth_algo: p.headers['paypal-auth-algo'], cert_url: p.headers['paypal-cert-url'],

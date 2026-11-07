@@ -23,7 +23,8 @@ CREATE TABLE IF NOT EXISTS milestones (
   id TEXT PRIMARY KEY, pact_id TEXT, idx INTEGER, title TEXT, amount_cents INTEGER, due_at INTEGER,
   criteria TEXT, status TEXT, release_at INTEGER, awarded_cents INTEGER,
   capture_id TEXT, payout_id TEXT, contest_by TEXT, contest_statement TEXT,
-  response_statement TEXT, convene_at INTEGER, locked_at INTEGER
+  response_statement TEXT, convene_at INTEGER, locked_at INTEGER,
+  payout_status TEXT, payout_attempt INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS milestones_pact ON milestones(pact_id);
 CREATE TABLE IF NOT EXISTS verifications (
@@ -81,6 +82,10 @@ async function localDriver(): Promise<Driver> {
 const ready: Promise<Driver> = (async () => {
   const driver = await (config.db.url ? remoteDriver() : localDriver());
   await driver.script(SCHEMA);
+  // Databases created before these columns existed. SQLite has no ADD COLUMN IF NOT EXISTS.
+  for (const column of ['payout_status TEXT', 'payout_attempt INTEGER DEFAULT 0']) {
+    await driver.run(`ALTER TABLE milestones ADD COLUMN ${column}`, []).catch(() => {});
+  }
   return driver;
 })();
 

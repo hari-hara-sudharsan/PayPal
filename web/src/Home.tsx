@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, go, keys, money, STATUS } from './lib';
+import { api, go, keys, money, STATUS, type Meta } from './lib';
 import { HoldBar } from './HoldBar';
 import { DEMO_PACT } from './samples';
 
@@ -22,7 +22,10 @@ export function Home() {
   const startDemo = async () => {
     setStarting(true); setError('');
     try {
-      const out = await api<{ id: string; buyer_link: string; worker_link: string }>('/pacts', { body: DEMO_PACT });
+      const meta = await api<Meta>('/meta');
+      // On the real sandbox, pay a real sandbox account so the payout can settle.
+      const body = { ...DEMO_PACT, worker_email: meta.sandbox_worker_email ?? DEMO_PACT.worker_email };
+      const out = await api<{ id: string; buyer_link: string; worker_link: string }>('/pacts', { body });
       const key = (link: string) => new URL(link, location.href).searchParams.get('k')!;
       keys.save(out.id, 'buyer', key(out.buyer_link));
       keys.save(out.id, 'worker', key(out.worker_link));

@@ -79,8 +79,19 @@ async function reauthorize(authId: string, body: Body): Promise<Out> {
 }
 
 async function payout(_: string, body: Body): Promise<Out> {
-  if (String(body.items[0].receiver).includes('fail-payout')) return fail('RECEIVER_UNREGISTERED');
-  return { status: 201, body: { batch_header: { payout_batch_id: id('SIMPAY'), batch_status: 'PENDING' } } };
+  const receiver = String(body.items[0].receiver);
+  if (receiver.includes('fail-payout')) return fail('RECEIVER_UNREGISTERED');
+  const batch = id('SIMPAY');
+  await put(`payout:${batch}`, { receiver });
+  return { status: 201, body: { batch_header: { payout_batch_id: batch, batch_status: 'PENDING' } } };
+}
+
+/** Test receivers: `bounce` fails after acceptance, `unclaimed` has no PayPal account. */
+async function payoutStatus(batch: string): Promise<Out> {
+  const saved = await get<{ receiver: string }>(`payout:${batch}`);
+  if (!saved) return missing;
+  const status = saved.receiver.includes('bounce') ? 'FAILED' : saved.receiver.includes('unclaimed') ? 'UNCLAIMED' : 'SUCCESS';
+  return { status: 200, body: { batch_header: { batch_status: 'SUCCESS' }, items: [{ transaction_status: status, ...(status === 'FAILED' ? { errors: { name: 'RECEIVER_ACCOUNT_LOCKED', message: 'Receiver account is locked.' } } : {}) }] } };
 }
 
 const ROUTES: [RegExp, (param: string, body: Body) => Promise<Out>][] = [
@@ -90,6 +101,7 @@ const ROUTES: [RegExp, (param: string, body: Body) => Promise<Out>][] = [
   [/^\/v2\/payments\/authorizations\/([^/]+)\/void$/, voidAuth],
   [/^\/v2\/payments\/authorizations\/([^/]+)\/reauthorize$/, reauthorize],
   [/^\/v1\/payments\/payouts$/, payout],
+  [/^\/v1\/payments\/payouts\/([^/]+)$/, payoutStatus],
 ];
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });

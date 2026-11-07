@@ -8,7 +8,7 @@ export interface PactView extends Omit<Pact, 'buyer_key' | 'worker_key'> {
   chain: { intact: boolean; length: number; brokenAt: number | null };
   links?: { worker: string };
 }
-export interface Meta { paypal_mode: 'sim' | 'sandbox'; paypal_client_id: string | null; ai_provider: string; ai_model: string; fee_bps: number }
+export interface Meta { paypal_mode: 'sim' | 'sandbox'; paypal_client_id: string | null; ai_provider: string; ai_model: string; fee_bps: number; sandbox_buyer: { email: string; password: string } | null; sandbox_worker_email: string | null }
 
 export async function api<T = unknown>(path: string, opts: { method?: string; body?: unknown; pactKey?: string } = {}): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -90,5 +90,6 @@ export const LEDGER_LABEL: Record<string, string> = {
   HOLD_RELEASED: 'Hold released', PACT_SETTLED: 'Settled', DISPUTE_OPENED: 'Dispute opened',
   DISPUTE_RESPONSE: 'Response filed', TRIBUNAL_CONVENED: 'Tribunal convened', TRIBUNAL_STEP: 'Tribunal turn',
   VERDICT: 'Verdict', ESCALATED: 'Sent to a person', HOLD_RENEWED: 'Hold renewed', HOLD_RENEWAL_FAILED: 'Renewal failed',
+  PAYOUT_CONFIRMED: 'Payout confirmed', PAYOUT_UNCLAIMED: 'Payout unclaimed', PAYOUT_REVERSED: 'Payout reversed',
   RECOVERED: 'Recovered after restart', CAPTURE_FAILED: 'Capture failed', PAYOUT_FAILED: 'Payout failed', WEBHOOK: 'PayPal webhook',
 };
