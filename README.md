@@ -2,6 +2,8 @@
 
 **Money that moves when the work is proven.**
 
+**Live demo: https://pact-paypal.vercel.app** (press *Start the demo*, no signup needed)
+
 Paying a stranger online for work means someone takes a risk. Pay first and the work may never come. Work first and the money may never come. For small jobs, nobody can afford a lawyer, so the loser just eats it.
 
 Pact removes that risk using a PayPal primitive most apps ignore: the authorization. The buyer's money is held but not charged, and it moves only as work is proven.
@@ -26,7 +28,7 @@ The deliverable is written by the person who gets paid if it passes, so Pact tre
 
 Try it: on any milestone, pick the **Prompt-injection attack** sample as the worker.
 
-`scripts/eval.ts` runs adversarial deliverables against the real pipeline. The latest run with `nvidia/nemotron-3-ultra-550b-a55b` got 9 of 9 right: honest work passed, and none of the 8 attacks or padded deliverables reached a payable state. It is a small set, so read it as a regression check and not as a guarantee.
+`scripts/eval.ts` runs adversarial deliverables against the real pipeline. The latest run on the live deployment with `nvidia/nemotron-3-ultra-550b-a55b` got 9 of 9 right: honest work passed, and none of the 8 attacks or padded deliverables reached a payable state. It is a small set, so read it as a regression check and not as a guarantee.
 
 ## PayPal integration
 
@@ -45,6 +47,18 @@ Each money movement uses a `PayPal-Request-Id` derived from the milestone, so a 
 ## Agents
 
 Pact is an MCP server at `/mcp`, so an AI agent can hire, or get hired, under the same guardrails. An agent can draft, sign, deliver, and read status. It cannot fund a pact, because funding stops at a PayPal link a person must approve, and no tool releases money. `npm run agent-demo` shows one agent hiring another.
+
+## Testing it
+
+On the [live demo](https://pact-paypal.vercel.app), press **Start the demo** and play both sides with the switch at the top right:
+
+1. As the buyer, approve the hold.
+2. As the worker, choose the **Prompt-injection attack** sample and submit. The Shield blocks it.
+3. Choose **Honest delivery** and submit. It verifies.
+4. As the buyer, open a dispute, then answer it as the worker. Watch the tribunal rule and pay.
+5. Open **Ledger**, then **Reconciliation**, to see the books balance.
+
+The sidebar always shows whether PayPal is simulated or the live sandbox, and which AI model is in use. Each visitor has an hourly AI limit and the demo has a daily one, so the public site cannot run up a bill.
 
 ## Run it
 
@@ -78,7 +92,7 @@ npx tsx scripts/live-check.ts  # serverless behaviour, against a deployment
 
 - **PayPal REST APIs and JS SDK:** see the table above.
 - **AI model:** Claude (`claude-opus-5-5`) through the Anthropic SDK, or any OpenAI-compatible model. Tested end to end with `nvidia/nemotron-3-ultra-550b-a55b`. Used for contract drafting, judgment criteria, the injection screen, the tribunal, and plain-English ledger search.
-- **AG Grid:** the ledger, with AI-driven external filtering, live totals over filtered rows, and CSV export.
+- **AG Grid:** the ledger, with AI-driven external filtering, live totals over filtered rows, and CSV export, plus a reconciliation grid with the hold bar drawn in its cells and a pinned totals row.
 - **Vercel and Turso:** hosting and the database.
 - **Model Context Protocol:** the agent interface.
 

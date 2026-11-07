@@ -36,8 +36,8 @@ function buildBooks(rows: LedgerEntry[], chains: Record<string, boolean>): Book[
 const DEFAULT_COL: ColDef<Book> = { sortable: true, resizable: true };
 const rowId = (p: { data: Book }) => p.data.pact_id || 'total';
 
-const cents = (key: keyof Book, header: string, width = 118): ColDef<Book> => ({
-  headerName: header, field: key, width, type: 'rightAligned', filter: 'agNumberColumnFilter',
+const cents = (key: keyof Book, header: string, width = 96): ColDef<Book> => ({
+  headerName: header, field: key, width, type: 'rightAligned',
   cellClass: ['ag-right-aligned-cell', 'num'], valueFormatter: (p) => money(Number(p.value ?? 0), p.data?.currency),
 });
 
@@ -51,21 +51,21 @@ export function Reconciliation({ rows, chains }: { rows: LedgerEntry[]; chains: 
 
   const columns = useMemo<ColDef<Book>[]>(() => [
     {
-      headerName: 'Pact', field: 'title', flex: 1, minWidth: 190, filter: true,
+      headerName: 'Pact', field: 'title', flex: 1, minWidth: 150, filter: true,
       cellRenderer: (p: { value: string; data: Book }) => (p.data.pact_id
         ? <a href={`/p/${p.data.pact_id}`} onClick={(e) => { e.preventDefault(); go(`/p/${p.data.pact_id}`); }}>{p.value}</a>
         : <strong>{p.value}</strong>),
     },
     {
-      headerName: 'Where the money is', field: 'held', width: 190, sortable: false,
+      headerName: 'Where the money is', field: 'held', width: 150, sortable: false,
       cellRenderer: (p: { data: Book }) => (
         <div className="cell-bar"><HoldBar slim paid={p.data.captured} held={p.data.open} back={p.data.returned} /></div>
       ),
     },
-    cents('held', 'Held'), cents('captured', 'Captured'), cents('paid', 'Paid out'), cents('fee', 'Fees', 96),
-    cents('returned', 'Never charged', 124), cents('open', 'Still held'),
+    cents('held', 'Held'), cents('captured', 'Captured'), cents('paid', 'Paid out'), cents('fee', 'Fees', 80),
+    cents('returned', 'Returned'), cents('open', 'Still held'),
     {
-      headerName: 'Books', field: 'owed', width: 120,
+      headerName: 'Books', field: 'owed', width: 106,
       cellRenderer: (p: { data: Book }) => {
         if (!p.data.chain) return <span className="pill negative">Tampered</span>;
         return p.data.owed === 0

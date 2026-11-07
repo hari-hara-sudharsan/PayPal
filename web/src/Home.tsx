@@ -5,6 +5,8 @@ import { DEMO_PACT } from './samples';
 
 interface Row { id: string; title: string; status: string; total_cents: number; captured_cents: number; currency: string; created_at: number }
 
+const RECENT = 8;
+
 const pactHref = (id: string) => {
   const k = keys.read()[id];
   const key = k?.buyer ?? k?.worker;
@@ -55,11 +57,11 @@ export function Home() {
       </section>
 
       <section className="card" aria-label="Pacts">
-        <h2>Pacts</h2>
+        <h2>Recent pacts</h2>
         {rows === null && <p className="muted small">Loading…</p>}
         {rows?.length === 0 && <p className="muted small" style={{ marginTop: 8 }}>No pacts yet. Start one from any conversation.</p>}
         <div style={{ marginTop: 8 }}>
-          {rows?.map((p) => {
+          {rows?.slice(0, RECENT).map((p) => {
             const settled = p.status === 'SETTLED';
             const paid = p.captured_cents;
             return (
