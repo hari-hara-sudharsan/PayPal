@@ -147,6 +147,8 @@ pre.code { margin: 0; background: #1b1d1f; color: #e8eaed; border-radius: 12px; 
 .stat span { display: block; font-size: 14px; color: var(--muted); }
 .stat .money { font-size: 26px; }
 .topbar { display: none; }
+.toast { position: fixed; right: 24px; bottom: 24px; z-index: 20; max-width: min(440px, calc(100vw - 32px)); display: flex; gap: 14px; align-items: center; background: var(--text); color: #fff; padding: 14px 16px; border-radius: 12px; font-size: 14px; box-shadow: 0 8px 24px rgba(0, 0, 0, .18); animation: rise .25s ease-out both; }
+.toast .btn { color: var(--text); flex: none; }
 .cell-bar { display: flex; align-items: center; height: 100%; }
 .cell-bar .hold { width: 100%; }
 .demo { display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap; background: var(--raised); border-color: var(--accent-soft); }

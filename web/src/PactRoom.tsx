@@ -64,7 +64,12 @@ export function PactRoom({ id, meta }: { id: string; meta: Meta | null }) {
         )}
       </div>
 
-      {error && <div className="notice bad" style={{ marginTop: 0 }} role="alert">{error}</div>}
+      {error && (
+        <div className="toast" role="alert">
+          <span>{error}</span>
+          <button className="btn sm" onClick={() => setError('')}>Dismiss</button>
+        </div>
+      )}
 
       <section className="card" aria-label="Where the money is">
         <div className="hold-figures">
@@ -243,7 +248,10 @@ const Tick = ({ yes }: { yes: boolean }) => (
   </svg>
 );
 
+const SHIELD_PREVIEW = 3;
+
 function Review({ v, status }: { v: MilestoneView['verifications'][number]; status: string }) {
+  const [all, setAll] = useState(false);
   const tone = v.shield.length ? 'bad' : v.outcome === 'PASS' ? 'good' : v.outcome === 'FAIL' ? 'bad' : 'warn';
   if (status === 'RELEASED' && !v.shield.length) return null;
   return (
@@ -251,9 +259,12 @@ function Review({ v, status }: { v: MilestoneView['verifications'][number]; stat
       <strong>{v.summary}</strong>
       {v.shield.length > 0 && (
         <div style={{ marginTop: 8 }}>
-          {v.shield.map((s, i) => (
+          {(all ? v.shield : v.shield.slice(0, SHIELD_PREVIEW)).map((s, i) => (
             <div key={i} className="shield-hit"><span>{s.technique}</span><code>{s.excerpt}</code></div>
           ))}
+          {!all && v.shield.length > SHIELD_PREVIEW && (
+            <button className="btn sm" style={{ marginTop: 8 }} onClick={() => setAll(true)}>Show all {v.shield.length} findings</button>
+          )}
         </div>
       )}
       <div className="tiny" style={{ marginTop: 6, opacity: .8 }}>Attempt {v.attempt}. Reviewed by {v.model}.</div>
