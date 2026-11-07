@@ -229,7 +229,7 @@ function MilestoneCard({ m, pact, act }: { m: MilestoneView; pact: PactView; act
         </div>
       )}
 
-      {(m.tribunal.length > 0 || m.status === 'IN_TRIBUNAL') && <Tribunal m={m} pact={pact} />}
+      {(m.tribunal.length > 0 || m.status === 'IN_TRIBUNAL' || m.status === 'ESCALATED') && <Tribunal m={m} pact={pact} />}
 
       {canSubmit && <SubmitForm base={base} act={act} retry={m.verifications.length > 0} />}
       <Decisions m={m} pact={pact} base={base} act={act} />
@@ -327,14 +327,16 @@ function Decisions({ m, pact, base, act }: { m: MilestoneView; pact: PactView; b
     );
   }
 
+  const canReconvene = m.status === 'ESCALATED' && !!m.contest_by;
   const canApprove = role === 'buyer' && ['PASSED', 'FAILED', 'HELD', 'ESCALATED'].includes(m.status);
   const canContest = !!pact.ai_arbitration && (role === 'buyer' ? ['PASSED', 'HELD'] : ['FAILED', 'HELD']).includes(m.status);
   const canWithdraw = role === 'worker' && ['OPEN', 'FAILED', 'HELD', 'ESCALATED'].includes(m.status);
-  if (!canApprove && !canContest && !canWithdraw) return null;
+  if (!canApprove && !canContest && !canWithdraw && !canReconvene) return null;
 
   return (
     <>
       <div className="actions">
+        {canReconvene && <button className="btn" onClick={() => act(`${base}/reconvene`)}>Reconvene the tribunal</button>}
         {canApprove && <button className="btn primary" onClick={() => act(`${base}/approve`)}>Release {money(m.amount_cents, pact.currency)}</button>}
         {canContest && <button className="btn" onClick={() => setOpen(!open)}>Open a dispute</button>}
         {canWithdraw && <button className="btn danger" onClick={() => act(`${base}/forfeit`)}>Withdraw from this milestone</button>}
@@ -358,7 +360,7 @@ function Tribunal({ m, pact }: { m: MilestoneView; pact: PactView }) {
   const lane = (who: 'advocate_worker' | 'advocate_buyer') => m.tribunal.filter((s) => s.speaker === who);
   const judge = m.tribunal.find((s) => s.speaker === 'judge');
   const verdict = pact.ledger.find((r) => r.milestone_id === m.id && r.type === 'VERDICT');
-  const inSession = m.status === 'IN_TRIBUNAL';
+  const inSession = m.status === 'IN_TRIBUNAL' || m.status === 'CONTESTED';
 
   const Lane = ({ who, name, cls }: { who: 'advocate_worker' | 'advocate_buyer'; name: string; cls: string }) => (
     <div className="lane">
@@ -388,7 +390,7 @@ function Tribunal({ m, pact }: { m: MilestoneView; pact: PactView }) {
           )}
         </div>
       )}
-      {m.status === 'ESCALATED' && <div className="notice warn" style={{ marginTop: 0 }}>The arbiter was not confident enough to rule, so no money moved. This needs a person.</div>}
+      {m.status === 'ESCALATED' && <div className="notice warn" style={{ marginTop: 0 }}>The tribunal could not reach a ruling, so no money moved. Run it again, or settle this between you.</div>}
     </div>
   );
 }

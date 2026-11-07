@@ -278,6 +278,12 @@ export async function fileResponse(milestoneId: string, by: Role, statement: str
   await record({ pact_id: m.pact_id, milestone_id: m.id, type: 'DISPUTE_RESPONSE', actor: by, detail: statement.slice(0, 200) });
 }
 
+/** A hearing stopped by an AI outage decided nothing, so either party may run it again. */
+export async function reopenHearing(milestoneId: string) {
+  await transition(milestoneId, ['ESCALATED'], 'CONTESTED', { convene_at: now() });
+  await db.run('DELETE FROM tribunal_steps WHERE milestone_id = ?', milestoneId);
+}
+
 export async function convene(milestoneId: string) {
   await transition(milestoneId, ['CONTESTED'], 'IN_TRIBUNAL');
   const m = await getMilestone(milestoneId);

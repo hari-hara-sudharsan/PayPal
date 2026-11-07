@@ -2,17 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry, themeQuartz, type ColDef, type GridApi, type IRowNode } from 'ag-grid-community';
 import { api, go, LEDGER_LABEL, money } from './lib';
+import { Reconciliation } from './Reconciliation';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-const theme = themeQuartz.withParams({
+export const gridTheme = themeQuartz.withParams({
   fontFamily: 'Manrope, Inter, system-ui, sans-serif', fontSize: 14, headerFontSize: 12, headerFontWeight: 500,
   headerTextColor: '#5c6064', headerBackgroundColor: '#ffffff', backgroundColor: '#ffffff', foregroundColor: '#1b1d1f',
   borderColor: '#f0f1f2', rowBorder: { color: '#f0f1f2' }, wrapperBorder: false, wrapperBorderRadius: 0,
   rowHoverColor: '#f2f8fd', accentColor: '#1d5fd6', columnBorder: false, rowHeight: 44, headerHeight: 40,
 });
 
-interface Row {
+export interface LedgerEntry {
   seq: number; pact_id: string; pact_title: string; currency: string; type: string; actor: string;
   amount_cents: number | null; paypal_ref: string | null; detail: string; at: number; hash: string;
 }
@@ -25,18 +26,19 @@ const TONE: Record<string, string> = {
 const QUESTIONS = ['What did workers get paid over $100?', 'Show every attack the shield caught', 'Which rulings did the AI make?'];
 
 export function Ledger() {
-  const [rows, setRows] = useState<Row[]>([]);
+  const [rows, setRows] = useState<LedgerEntry[]>([]);
   const [chains, setChains] = useState<Record<string, boolean>>({});
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<Filter | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [visible, setVisible] = useState({ captured: 0, paid: 0, count: 0 });
-  const grid = useRef<GridApi<Row> | null>(null);
+  const [view, setView] = useState<'events' | 'books'>('events');
+  const grid = useRef<GridApi<LedgerEntry> | null>(null);
   const filterRef = useRef<Filter | null>(null);
 
   useEffect(() => {
-    api<{ rows: Row[]; chains: Record<string, boolean> }>('/ledger').then((d) => { setRows(d.rows); setChains(d.chains); }).catch((e) => setError(e.message));
+    api<{ rows: LedgerEntry[]; chains: Record<string, boolean> }>('/ledger').then((d) => { setRows(d.rows); setChains(d.chains); }).catch((e) => setError(e.message));
   }, []);
 
   const tally = useCallback(() => {
@@ -62,7 +64,7 @@ export function Ledger() {
     setBusy(false);
   };
 
-  const columns = useMemo<ColDef<Row>[]>(() => [
+  const columns = useMemo<ColDef<LedgerEntry>[]>(() => [
     { headerName: 'When', field: 'at', width: 150, valueFormatter: (p) => new Date(p.value).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) },
     {
       headerName: 'Event', field: 'type', width: 180, filter: true,
@@ -70,7 +72,7 @@ export function Ledger() {
     },
     {
       headerName: 'Pact', field: 'pact_title', flex: 1, minWidth: 170, filter: true,
-      cellRenderer: (p: { value: string; data: Row }) => (
+      cellRenderer: (p: { value: string; data: LedgerEntry }) => (
         <a href={`/p/${p.data.pact_id}`} onClick={(e) => { e.preventDefault(); go(`/p/${p.data.pact_id}`); }}>{p.value}</a>
       ),
     },
@@ -83,13 +85,13 @@ export function Ledger() {
     { headerName: 'Detail', field: 'detail', flex: 1.4, minWidth: 220, tooltipField: 'detail' },
     {
       headerName: 'Chain', field: 'hash', width: 110, sortable: false,
-      cellRenderer: (p: { value: string; data: Row }) => (
+      cellRenderer: (p: { value: string; data: LedgerEntry }) => (
         <span title={p.value} className={`pill ${chains[p.data.pact_id] === false ? 'negative' : 'positive'}`}>{chains[p.data.pact_id] === false ? 'Broken' : p.value.slice(0, 6)}</span>
       ),
     },
   ], [chains]);
 
-  const passes = useCallback((node: IRowNode<Row>) => {
+  const passes = useCallback((node: IRowNode<LedgerEntry>) => {
     const f = filterRef.current;
     const r = node.data;
     if (!f || !r) return true;
@@ -125,20 +127,29 @@ export function Ledger() {
       </section>
 
       <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="row between" style={{ padding: '16px 24px 0' }}>
+          <div className="seg" role="group" aria-label="Ledger view">
+            <button className={view === 'events' ? 'on' : ''} onClick={() => setView('events')}>Every event</button>
+            <button className={view === 'books' ? 'on' : ''} onClick={() => setView('books')}>Reconciliation</button>
+          </div>
+        </div>
+        {view === 'books' && <Reconciliation rows={rows} chains={chains} />}
+        <div style={{ display: view === 'events' ? 'block' : 'none' }}>
         <div className="row" style={{ padding: '16px 24px', gap: 40 }}>
           <div className="stat"><span>Captured from buyers</span><div className="money">{money(visible.captured)}</div></div>
           <div className="stat"><span>Paid to workers</span><div className="money">{money(visible.paid)}</div></div>
           <div className="stat"><span>Entries shown</span><div className="money">{visible.count}</div></div>
         </div>
         <div style={{ height: 560 }}>
-          <AgGridReact<Row>
-            theme={theme} rowData={rows} columnDefs={columns} defaultColDef={{ sortable: true, resizable: true }}
+          <AgGridReact<LedgerEntry>
+            theme={gridTheme} rowData={rows} columnDefs={columns} defaultColDef={{ sortable: true, resizable: true }}
             getRowId={(p) => String(p.data.seq)} animateRows tooltipShowDelay={300}
             onGridReady={(e) => { grid.current = e.api; }}
             isExternalFilterPresent={() => filterRef.current !== null}
             doesExternalFilterPass={passes}
             onModelUpdated={tally}
           />
+        </div>
         </div>
       </section>
     </div>

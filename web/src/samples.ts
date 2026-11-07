@@ -1,3 +1,35 @@
+/** A finished contract, so the one-click demo needs no typing and spends no model calls. */
+export const DEMO_PACT = {
+  source_text: 'One-click demo',
+  buyer_email: 'lena@ryeandsalt.example',
+  worker_email: 'tomas@wordsmith.example',
+  challenge_seconds: 30,
+  auto_release_max: 500,
+  draft: {
+    title: 'Rye & Salt website copy',
+    summary: 'Homepage and blog copy for an independent bakery.',
+    currency: 'USD', buyer_name: 'Lena', worker_name: 'Tomas', clarifications: [], warnings: [],
+    milestones: [
+      {
+        title: 'Homepage copy', amount: 150, due_days: 5,
+        criteria: [
+          { text: 'At least 100 words', kind: 'min_words', arg: 100 },
+          { text: 'Mentions the 4am bake', kind: 'must_include', arg: '4am bake' },
+          { text: 'Mentions the Saturday market', kind: 'must_include', arg: 'Saturday market' },
+          { text: 'Explains how the bread is made, naming at least two ingredients or steps', kind: 'judgment', arg: null },
+        ],
+      },
+      {
+        title: 'Three sourdough blog posts', amount: 250, due_days: 12,
+        criteria: [
+          { text: 'At least 900 words in total', kind: 'min_words', arg: 900 },
+          { text: 'Covers sourdough in all three posts', kind: 'judgment', arg: null },
+        ],
+      },
+    ],
+  },
+};
+
 export const SAMPLE_CHATS = [
   {
     name: 'Bakery website copy',

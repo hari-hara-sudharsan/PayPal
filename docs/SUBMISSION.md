@@ -16,7 +16,7 @@ Pact turns a chat into an enforceable payment contract. AI writes milestones wit
 
 ## How we built it
 
-Node, TypeScript, React, SQLite. PayPal Orders v2 with `intent: AUTHORIZE`, partial captures, void, reauthorize, Payouts, and signature-verified webhooks. AG Grid powers the ledger, including plain-English filtering. An MCP server lets AI agents hire and deliver work. Deployed on Render.
+Node, TypeScript, React, SQLite. PayPal Orders v2 with `intent: AUTHORIZE`, partial captures, void, reauthorize, Payouts, and signature-verified webhooks. AG Grid powers the ledger, including plain-English filtering. An MCP server lets AI agents hire and deliver work. Deployed on Vercel with Turso.
 
 The core design rule is that AI never moves money. Models return findings. Deterministic code decides the outcome, checks every award against the contract, and is the only path to PayPal.
 
@@ -51,6 +51,6 @@ Appeals, image and file review, and PayPal multiparty onboarding for production 
 
 - [ ] Real PayPal sandbox run recorded, with the sidebar showing "Live sandbox"
 - [ ] Public GitHub repo with the MIT license visible in the About section
-- [ ] Hosted demo URL on Render
+- [ ] Hosted demo URL: https://pact-paypal.vercel.app
 - [ ] YouTube video public, under 3 minutes, no copyrighted music
 - [ ] Tools section lists the AI model actually used in the recording

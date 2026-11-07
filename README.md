@@ -65,12 +65,13 @@ With no credentials, Pact runs on a built-in PayPal emulator and offline rules. 
 | Claude | `ANTHROPIC_API_KEY` |
 | Any OpenAI-compatible model | `OPENAI_API_KEY`, `OPENAI_API_BASE`, `AI_MODEL` |
 
-Deploy on Render with the included `render.yaml`.
+To deploy on Vercel, connect a Turso database and run `vercel deploy --prod`. `npm run build:vercel` emits the Build Output API format, and any Node host works with `npm start`.
 
 ```bash
 npm test                 # engine, Shield, and money-safety tests
 npm run typecheck
 npx tsx scripts/eval.ts  # adversarial eval, against a running server
+npx tsx scripts/live-check.ts  # serverless behaviour, against a deployment
 ```
 
 ## Tools used
@@ -78,7 +79,7 @@ npx tsx scripts/eval.ts  # adversarial eval, against a running server
 - **PayPal REST APIs and JS SDK:** see the table above.
 - **AI model:** Claude (`claude-opus-5-5`) through the Anthropic SDK, or any OpenAI-compatible model. Tested end to end with `nvidia/nemotron-3-ultra-550b-a55b`. Used for contract drafting, judgment criteria, the injection screen, the tribunal, and plain-English ledger search.
 - **AG Grid:** the ledger, with AI-driven external filtering, live totals over filtered rows, and CSV export.
-- **Render:** hosting, through the included blueprint.
+- **Vercel and Turso:** hosting and the database.
 - **Model Context Protocol:** the agent interface.
 
 ## Honest limits
@@ -87,7 +88,6 @@ npx tsx scripts/eval.ts  # adversarial eval, against a running server
 - **Who can use this in production.** Holding and paying out for others is regulated. This is a sandbox prototype, and a real launch would need PayPal's multiparty onboarding and legal review.
 - **AI arbitration is opt-in** and low-confidence rulings go to a person, but there is no appeals process yet.
 - **Deliverables are text and links.** Images and files are not reviewed yet.
-- **Data.** The Render blueprint uses temporary storage, which resets on redeploy.
 
 ## License
 

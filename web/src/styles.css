@@ -147,6 +147,9 @@ pre.code { margin: 0; background: #1b1d1f; color: #e8eaed; border-radius: 12px; 
 .stat span { display: block; font-size: 14px; color: var(--muted); }
 .stat .money { font-size: 26px; }
 .topbar { display: none; }
+.cell-bar { display: flex; align-items: center; height: 100%; }
+.cell-bar .hold { width: 100%; }
+.demo { display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap; background: var(--raised); border-color: var(--accent-soft); }
 
 @media (max-width: 900px) {
   .shell { grid-template-columns: minmax(0, 1fr); }

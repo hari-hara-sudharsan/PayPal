@@ -187,6 +187,15 @@ export function apiRouter() {
     res.status(202).json({ ok: true });
   }));
 
+  r.post('/pacts/:id/milestones/:mid/reconvene', route(async (req, res) => {
+    const { pact } = await authed(req);
+    const m = await milestoneIn(pact, req.params.mid);
+    await chargeVisitor(visitor(req), 5);
+    await E.reopenHearing(m.id);
+    waitUntil(E.convene(m.id).catch((err) => console.error('tribunal', m.id, err)));
+    res.status(202).json({ ok: true });
+  }));
+
   r.post('/pacts/:id/milestones/:mid/forfeit', route(async (req, res) => {
     const { pact, role } = await authed(req);
     await E.forfeit((await milestoneIn(pact, req.params.mid)).id, role);

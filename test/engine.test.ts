@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { config } from '../server/config';
 import { simApprove } from '../server/paypal/sim';
 import { db } from '../server/db';
@@ -7,6 +7,7 @@ import { ledgerFor, record, verifyChain } from '../server/ledger';
 import { chargeModelCall, chargeVisitor, LimitReached } from '../server/limits';
 import * as E from '../server/engine/pacts';
 import type { Draft } from '../server/ai/draft';
+import { draftPact } from '../server/ai/draft';
 
 const DAY = 86_400_000;
 const WORK = 'one two three four five six';
@@ -274,6 +275,55 @@ describe('ledger', () => {
     const check = await verifyChain(pact.id);
     expect(check.intact).toBe(false);
     expect(check.brokenAt).not.toBeNull();
+  });
+});
+
+describe('AI endpoint failures', () => {
+  const useCompatible = () => {
+    config.ai.forceOffline = false;
+    config.ai.openaiKey = 'test';
+  };
+  const reply = new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ ...draft(), milestones: [] }) } }] }));
+
+  afterEach(() => {
+    config.ai.forceOffline = true;
+    config.ai.openaiKey = '';
+    vi.unstubAllGlobals();
+  });
+
+  it('rides out a transient 502', async () => {
+    useCompatible();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('bad gateway', { status: 502 }))
+      .mockResolvedValueOnce(reply);
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(draftPact('A long enough agreement')).resolves.toMatchObject({ title: 'Landing page copy' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry a request the endpoint rejected', async () => {
+    useCompatible();
+    const fetchMock = vi.fn().mockResolvedValue(new Response('no', { status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(draftPact('A long enough agreement')).rejects.toThrow(/401/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops a hearing safely in an outage, then reconvenes it', async () => {
+    const { pact, ms } = await funded();
+    await E.submitWork(ms[0]!.id, WORK, null);
+    await E.contest(ms[0]!.id, 'buyer', 'No.');
+    useCompatible();
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response('down', { status: 401 })));
+    await E.convene(ms[0]!.id);
+    expect(await status(ms[0]!.id)).toBe('ESCALATED');
+    expect((await P(pact.id)).captured_cents).toBe(0);
+
+    config.ai.forceOffline = true;
+    await E.reopenHearing(ms[0]!.id);
+    await E.convene(ms[0]!.id);
+    expect(await status(ms[0]!.id)).toBe('RELEASED');
+    expect(await E.tribunalOf(ms[0]!.id)).toHaveLength(5);
   });
 });
 

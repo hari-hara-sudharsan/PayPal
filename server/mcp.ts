@@ -97,7 +97,8 @@ export function mcpRouter() {
   r.use(json({ limit: '1mb' }));
 
   r.post('/', async (req: Request, res: Response) => {
-    const open = config.paypal.mode === 'sim' && !config.mcpToken;
+    // The emulator moves no money, so it stays open for anyone trying the demo, within the AI limits.
+    const open = config.paypal.mode === 'sim';
     if (!open && (!config.mcpToken || req.get('authorization') !== `Bearer ${config.mcpToken}`)) {
       return void res.status(401).json({ error: 'MCP_TOKEN is required' });
     }
