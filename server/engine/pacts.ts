@@ -29,7 +29,13 @@ const rowToMilestone = (r: Record<string, unknown>): Milestone =>
 
 export const getPact = (id: string) => db.get<Pact>('SELECT * FROM pacts WHERE id = ?', id);
 
-export const listPacts = () => db.all<Pact>('SELECT * FROM pacts ORDER BY created_at DESC LIMIT 100');
+/**
+ * Once real PayPal is connected, pacts funded by the emulator are left out: their references
+ * mean nothing to PayPal, so they are neither listed nor sent to it. Nothing is deleted.
+ */
+export const REAL_ONLY = config.paypal.mode === 'sandbox' ? ` AND COALESCE(p.auth_id, '') NOT LIKE 'SIM%'` : '';
+
+export const listPacts = () => db.all<Pact>(`SELECT p.* FROM pacts p WHERE 1 = 1${REAL_ONLY} ORDER BY p.created_at DESC LIMIT 100`);
 
 export const milestonesOf = async (pactId: string) =>
   (await db.all<Record<string, unknown>>('SELECT * FROM milestones WHERE pact_id = ? ORDER BY idx', pactId)).map(rowToMilestone);
@@ -334,7 +340,8 @@ async function confirmPayouts(pactId?: string) {
   const pending = await db.all<{ id: string; pact_id: string; payout_id: string; payout_status: string | null; awarded_cents: number }>(
     `SELECT id, pact_id, payout_id, payout_status, awarded_cents FROM milestones
      WHERE status = 'RELEASED' AND payout_id IS NOT NULL
-       AND (payout_status IS NULL OR payout_status IN ('PENDING', 'PROCESSING', 'ONHOLD', 'NEW'))${pactId ? ' AND pact_id = ?' : ''}`,
+       AND (payout_status IS NULL OR payout_status IN ('PENDING', 'PROCESSING', 'ONHOLD', 'NEW'))${pactId ? ' AND pact_id = ?' : ''}
+       AND pact_id IN (SELECT p.id FROM pacts p WHERE 1 = 1${REAL_ONLY})`,
     ...(pactId ? [pactId] : []));
 
   for (const m of pending) {
@@ -375,7 +382,7 @@ async function confirmPayouts(pactId?: string) {
  */
 export async function sweep(pactId?: string) {
   const at = now();
-  const scope = pactId ? ' AND p.id = ?' : '';
+  const scope = (pactId ? ' AND p.id = ?' : '') + REAL_ONLY;
   const args = pactId ? [pactId] : [];
 
   // In-flight work older than any function can live has lost its owner. A review goes to a

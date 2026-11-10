@@ -68,7 +68,7 @@ void appOrder;
 async function approvedOrder(cents: number) {
   const created = await paypal.createOrder({ pactId: `approve_${run}`, description: 'Pact sandbox check', cents, currency: 'USD' });
   console.log(`\nAPPROVE HERE: ${created.links?.find((l) => l.rel === 'payer-action')?.href}\n`);
-  const end = Date.now() + 15 * 60_000;
+  const end = Date.now() + Number(process.env.APPROVE_MINUTES ?? 15) * 60_000;
   const { access_token } = await token();
   while (Date.now() < end) {
     const res = await fetch(`${config.paypal.base}/v2/checkout/orders/${created.id}`, { headers: { Authorization: `Bearer ${access_token}` } });
@@ -76,7 +76,7 @@ async function approvedOrder(cents: number) {
     if (body.status === 'APPROVED') return paypal.authorizeOrder(created.id);
     await new Promise((r) => setTimeout(r, 4000));
   }
-  throw new Error('Nobody approved within 15 minutes');
+  throw new Error('Nobody approved in time');
 }
 
 const useApproval = process.argv.includes('--approve');

@@ -222,7 +222,7 @@ export function apiRouter() {
     await seedIfEmpty();
     const rows = await db.all<Record<string, unknown>>(`SELECT l.seq, l.pact_id, p.title AS pact_title, p.currency, l.milestone_id, l.type, l.actor,
       l.amount_cents, l.paypal_ref, l.detail, l.at, l.hash
-      FROM ledger l JOIN pacts p ON p.id = l.pact_id ORDER BY l.seq DESC LIMIT 2000`);
+      FROM ledger l JOIN pacts p ON p.id = l.pact_id WHERE 1 = 1${E.REAL_ONLY} ORDER BY l.seq DESC LIMIT 2000`);
     const pacts = [...new Set(rows.map((x) => x.pact_id as string))];
     const checks = await Promise.all(pacts.map(async (id) => [id, (await verifyChain(id)).intact] as const));
     res.json({
