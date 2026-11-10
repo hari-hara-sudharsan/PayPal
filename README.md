@@ -32,15 +32,20 @@ Try it: on any milestone, pick the **Prompt-injection attack** sample as the wor
 
 ## PayPal integration
 
-| Capability | API | Used for |
-| --- | --- | --- |
-| Orders v2, `intent: AUTHORIZE` | `POST /v2/checkout/orders`, `/authorize` | Holding funds without charging |
-| JS SDK Buttons | `intent=authorize` | Buyer approval |
-| Partial capture | `POST /v2/payments/authorizations/{id}/capture` | One capture per milestone, against one hold |
-| Void | `POST /v2/payments/authorizations/{id}/void` | Returning the unearned balance |
-| Reauthorize | `POST /v2/payments/authorizations/{id}/reauthorize` | Renewing the hold after the 3-day honor period |
-| Payouts | `POST /v1/payments/payouts` | Paying the worker |
-| Webhooks | `POST /v1/notifications/verify-webhook-signature` | Signature-verified events into the ledger |
+The live demo runs on the real PayPal sandbox. `scripts/sandbox-check.ts --approve` drives Pact's own PayPal client against it after a sandbox buyer approves. The Verified column shows what that run confirmed.
+
+| Capability | API | Used for | Verified on the sandbox |
+| --- | --- | --- | --- |
+| Orders v2, `intent: AUTHORIZE` | `POST /v2/checkout/orders`, `/authorize` | Holding funds without charging | Yes, $100 held |
+| JS SDK Buttons | `intent=authorize` | Buyer approval | Button renders live |
+| Partial capture | `POST /v2/payments/authorizations/{id}/capture` | One capture per milestone, against one hold | Yes, two captures on one hold |
+| Idempotent retry | `PayPal-Request-Id` | Retries never charge twice | Yes, replay returned the same capture |
+| Void | `POST /v2/payments/authorizations/{id}/void` | Returning the unearned balance | Yes, and a later capture is refused |
+| Reauthorize | `POST /v2/payments/authorizations/{id}/reauthorize` | Renewing the hold after the 3-day honor period | Covered by tests; PayPal allows it only after day 3 |
+| Payouts | `POST /v1/payments/payouts` | Paying the worker | Refused for our sandbox account's country (see below) |
+| Webhooks | `POST /v1/notifications/verify-webhook-signature` | Signature-verified events into the ledger | Code path only |
+
+**About Payouts.** PayPal refuses Payouts from our sandbox business account with `PAYOUT_NOT_AVAILABLE`, because of the account's country. Pact handles this the way a production system should: the capture stands, and the worker's share is recorded in the ledger as owed, clearly labelled. With a sandbox business account in a Payouts-enabled country, the same code sends real payouts and tracks each one until PayPal confirms it.
 
 Each money movement uses a `PayPal-Request-Id` derived from the milestone, so a crash and retry replays the operation and cannot pay twice. A compare-and-set on milestone status stops concurrent double release.
 
@@ -58,7 +63,7 @@ On the [live demo](https://pact-paypal.vercel.app), press **Start the demo** and
 4. As the buyer, open a dispute, then answer it as the worker. Watch the tribunal rule and pay.
 5. Open **Ledger**, then **Reconciliation**, to see the books balance.
 
-The sidebar always shows whether PayPal is simulated or the live sandbox, and which AI model is in use. Each visitor has an hourly AI limit and the demo has a daily one, so the public site cannot run up a bill.
+To fund a pact, sign in to PayPal with the sandbox test buyer shown under the PayPal button. It holds only test money. The sidebar always shows whether PayPal is simulated or the live sandbox, and which AI model is in use. Each visitor has an hourly AI limit and the demo has a daily one, so the public site cannot run up a bill.
 
 ## Run it
 
@@ -102,6 +107,7 @@ npx tsx scripts/live-check.ts  # serverless behaviour, against a deployment
 - **Who can use this in production.** Holding and paying out for others is regulated. This is a sandbox prototype, and a real launch would need PayPal's multiparty onboarding and legal review.
 - **AI arbitration is opt-in** and low-confidence rulings go to a person, but there is no appeals process yet.
 - **Deliverables are text and links.** Images and files are not reviewed yet.
+- **Payouts depend on the PayPal account's country.** See above.
 
 ## License
 
