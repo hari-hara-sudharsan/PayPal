@@ -59,7 +59,7 @@ async function postChat(body: unknown): Promise<{ choices: { message: { content:
     try {
       const res = await fetch(`${config.ai.openaiBase}/chat/completions`, {
         method: 'POST',
-        signal: AbortSignal.timeout(60_000),
+        signal: AbortSignal.timeout(90_000),
         headers: { Authorization: `Bearer ${config.ai.openaiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
@@ -76,11 +76,12 @@ async function postChat(body: unknown): Promise<{ choices: { message: { content:
 async function askCompatible<S extends z.ZodType>(schema: S, system: string, user: string): Promise<z.infer<S>> {
   const shape = JSON.stringify(z.toJSONSchema(schema));
   const messages = [
-    { role: 'system', content: `${system}\n\nRespond with one JSON object and nothing else. It must match this JSON Schema:\n${shape}` },
+    // Some hosted models take a control phrase here, such as /no_think for Nemotron.
+    { role: 'system', content: `${config.ai.systemPrefix ? `${config.ai.systemPrefix}\n` : ''}${system}\n\nRespond with one JSON object and nothing else. It must match this JSON Schema:\n${shape}` },
     { role: 'user', content: user },
   ];
   let lastError: unknown;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     const body = await postChat({ model: modelName(), max_tokens: 4096, temperature: 0.2, messages });
     const content = body.choices[0]?.message.content ?? '';
     try {

@@ -122,9 +122,11 @@ export async function verifyDeliverable(
     const shield = [...findings, ...screen];
     return record({ results, shield, ...decideOutcome(results, shield) });
   } catch (err) {
-    return record({
-      results: machine, shield: findings, outcome: 'HOLD',
-      summary: `The AI reviewer was unavailable, so no money moved. A person needs to review this. (${(err as Error).message.slice(0, 120)})`,
-    });
+    // The deterministic Shield does not need the model, so its findings still lead.
+    const blocked = findings.some((f) => f.severity === 'high') || findings.length >= 3;
+    const summary = blocked
+      ? `Shield flagged ${findings.length} manipulation attempt${findings.length === 1 ? '' : 's'}. Automatic release is blocked until a person reviews this. The AI reviewer was also unavailable.`
+      : `The AI reviewer was unavailable, so no money moved. A person needs to review this. (${(err as Error).message.slice(0, 120)})`;
+    return record({ results: machine, shield: findings, outcome: 'HOLD', summary });
   }
 }

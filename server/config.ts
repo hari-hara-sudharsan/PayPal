@@ -37,5 +37,6 @@ export const config = {
     openaiBase: (env.OPENAI_API_BASE || 'https://api.openai.com/v1').replace(/\/$/, ''),
     model: env.AI_MODEL ?? '',
     forceOffline: env.PACT_AI === 'offline',
+    systemPrefix: env.AI_SYSTEM_PREFIX ?? '',
   },
 };
