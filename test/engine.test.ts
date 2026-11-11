@@ -299,17 +299,22 @@ describe('recovery from a function that died mid-task', () => {
     expect((await P(pact.id)).captured_cents).toBe(10_000);
   });
 
-  it('restarts an abandoned hearing from the beginning', async () => {
+  it('resumes an abandoned hearing, keeping the arguments already made', async () => {
     const { pact, ms } = await funded();
     await E.submitWork(ms[0]!.id, WORK, null);
     await E.contest(ms[0]!.id, 'buyer', 'No.');
-    await db.run(`INSERT INTO tribunal_steps VALUES ('x', ?, 1, 'judge', 'Ruling', 'partial', 'm', 0)`, ms[0]!.id);
+    await db.run(`INSERT INTO tribunal_steps VALUES ('w1', ?, 1, 'advocate_worker', 'Opening', 'kept worker opening', 'm', 0)`, ms[0]!.id);
+    await db.run(`INSERT INTO tribunal_steps VALUES ('b1', ?, 2, 'advocate_buyer', 'Opening', 'kept buyer opening', 'm', 0)`, ms[0]!.id);
+    await db.run(`INSERT INTO tribunal_steps VALUES ('j', ?, 3, 'judge', 'Ruling', 'unrecorded ruling', 'm', 0)`, ms[0]!.id);
     await db.run(`UPDATE milestones SET status = 'IN_TRIBUNAL', locked_at = ? WHERE id = ?`, Date.now(), ms[0]!.id);
     advanceClock(7 * 60_000);
-    await E.sweep(pact.id);
+    await Promise.all([E.sweep(pact.id), E.sweep(pact.id)]);
     const steps = await E.tribunalOf(ms[0]!.id);
-    expect(steps.some((s) => s.id === 'x')).toBe(false);
-    expect(await status(ms[0]!.id)).not.toBe('IN_TRIBUNAL');
+    expect(await status(ms[0]!.id)).toBe('RELEASED');
+    expect(steps.filter((s) => s.round === 'Opening').map((s) => s.text)).toEqual(['kept worker opening', 'kept buyer opening']);
+    expect(steps.map((s) => s.speaker)).toEqual(['advocate_worker', 'advocate_buyer', 'advocate_worker', 'advocate_buyer', 'judge']);
+    expect(steps.some((s) => s.text === 'unrecorded ruling')).toBe(false);
+    expect(await count(pact.id, 'VERDICT')).toBe(1);
   });
 });
 

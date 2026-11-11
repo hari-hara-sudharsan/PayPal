@@ -18,7 +18,7 @@ const HONOR_DAYS = 3;
 const AUTH_DAYS = 29;
 const MIN_JUDGE_CONFIDENCE = 0.6;
 /** Longer than the longest a function may run, so anything older has lost its owner. */
-const STALE_AFTER_MS = 6 * 60_000;
+const STALE_AFTER_MS = 5.5 * 60_000;
 /** States a milestone can never leave. */
 const TERMINAL: MilestoneStatus[] = ['RELEASED', 'FORFEITED'];
 /** States owned by a running request. */
@@ -302,16 +302,21 @@ export async function reopenHearing(milestoneId: string) {
   await db.run('DELETE FROM tribunal_steps WHERE milestone_id = ?', milestoneId);
 }
 
-export async function convene(milestoneId: string) {
-  await transition(milestoneId, ['CONTESTED'], 'IN_TRIBUNAL');
+/** `resume` continues a hearing whose earlier run was cut off; the caller has already claimed it. */
+export async function convene(milestoneId: string, resume = false) {
+  if (!resume) await transition(milestoneId, ['CONTESTED'], 'IN_TRIBUNAL');
   const m = await getMilestone(milestoneId);
   const pact = (await getPact(m.pact_id))!;
   const verification = (await verificationsOf(m.id)).at(-1) ?? null;
-  await record({ pact_id: pact.id, milestone_id: m.id, type: 'TRIBUNAL_CONVENED', actor: 'system', amount_cents: m.amount_cents });
+  if (!resume) await record({ pact_id: pact.id, milestone_id: m.id, type: 'TRIBUNAL_CONVENED', actor: 'system', amount_cents: m.amount_cents });
+
+  // A ruling only counts once its verdict is recorded, so an unrecorded one is argued again.
+  await db.run(`DELETE FROM tribunal_steps WHERE milestone_id = ? AND speaker = 'judge'`, m.id);
+  const done = await tribunalOf(m.id);
 
   let ruling;
   try {
-    ruling = await holdTribunal({ pact, milestone: m, verification }, async (s) => {
+    ruling = await holdTribunal({ pact, milestone: m, verification }, done, async (s) => {
       await db.run('INSERT INTO tribunal_steps VALUES (?,?,?,?,?,?,?,?)', s.id, s.milestone_id, s.seq, s.speaker, s.round, s.text, s.model, s.created_at);
       await record({ pact_id: pact.id, milestone_id: m.id, type: 'TRIBUNAL_STEP', actor: s.speaker, detail: s.round });
     });
@@ -388,16 +393,20 @@ export async function sweep(pactId?: string) {
   // In-flight work older than any function can live has lost its owner. A review goes to a
   // person, a hearing starts over, and a settlement becomes a retry, which is safe even if
   // the capture already went through.
-  const stuck = await db.all<{ id: string; pact_id: string; status: MilestoneStatus }>(
-    `SELECT m.id, m.pact_id, m.status FROM milestones m JOIN pacts p ON p.id = m.pact_id
+  const stuck = await db.all<{ id: string; pact_id: string; status: MilestoneStatus; locked_at: number }>(
+    `SELECT m.id, m.pact_id, m.status, m.locked_at FROM milestones m JOIN pacts p ON p.id = m.pact_id
      WHERE m.status IN ('VERIFYING', 'IN_TRIBUNAL', 'RELEASING') AND m.locked_at < ?${scope}`, at - STALE_AFTER_MS, ...args);
   for (const m of stuck) {
     try {
       if (m.status === 'VERIFYING') await transition(m.id, ['VERIFYING'], 'HELD');
       if (m.status === 'RELEASING') await transition(m.id, ['RELEASING'], 'PAYOUT_FAILED');
       if (m.status === 'IN_TRIBUNAL') {
-        await transition(m.id, ['IN_TRIBUNAL'], 'CONTESTED', { convene_at: at });
-        await db.run('DELETE FROM tribunal_steps WHERE milestone_id = ?', m.id);
+        // Claim it by its old lock time, so only one of several polling pages resumes it.
+        const { changes } = await db.run(`UPDATE milestones SET locked_at = ? WHERE id = ? AND status = 'IN_TRIBUNAL' AND locked_at = ?`, at, m.id, m.locked_at);
+        if (changes !== 1) continue;
+        await record({ pact_id: m.pact_id, milestone_id: m.id, type: 'RECOVERED', actor: 'system', detail: 'Hearing resumed where it stopped' });
+        await convene(m.id, true);
+        continue;
       }
       await record({ pact_id: m.pact_id, milestone_id: m.id, type: 'RECOVERED', actor: 'system', detail: `Timed out while ${m.status}` });
     } catch (err) {

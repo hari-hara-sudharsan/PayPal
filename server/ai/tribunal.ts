@@ -80,10 +80,16 @@ const offlineArgument = (side: Role) => ({
     : 'Offline rules: the buyer relies on the criteria the automated review marked as not met.',
 });
 
-/** Runs the hearing. `onStep` saves each turn as it finishes so the courtroom page fills in live. */
-export async function holdTribunal(c: Case, onStep: (s: TribunalStep) => Promise<void>): Promise<Ruling> {
+/**
+ * Runs the hearing. `onStep` saves each turn as it finishes so the courtroom page fills in live.
+ * `done` holds turns saved by an earlier run that was cut off, which are reused, not repeated,
+ * so a hearing longer than one serverless function still finishes.
+ */
+export async function holdTribunal(c: Case, done: TribunalStep[], onStep: (s: TribunalStep) => Promise<void>): Promise<Ruling> {
   const record = recordFor(c);
-  let seq = 0;
+  let seq = done.length;
+  const kept = (speaker: TribunalStep['speaker'], round: string) =>
+    done.find((s) => s.speaker === speaker && s.round === round)?.text;
   const step = (speaker: TribunalStep['speaker'], round: string, text: string) => onStep({
     id: crypto.randomUUID(), milestone_id: c.milestone.id, seq: ++seq, speaker, round, text,
     model: modelName(), created_at: Date.now(),
@@ -93,19 +99,25 @@ export async function holdTribunal(c: Case, onStep: (s: TribunalStep) => Promise
     prompt, () => offlineArgument(side),
   );
 
+  /** One turn: reused if an earlier run saved it, otherwise argued and saved now. */
+  const turn = async (side: Role, round: string, prompt: string) => {
+    const speaker = side === 'worker' ? 'advocate_worker' : 'advocate_buyer';
+    const saved = kept(speaker, round);
+    if (saved) return { argument: saved };
+    const out = await argue(side, prompt);
+    await step(speaker, round, out.argument);
+    return out;
+  };
+
   const [w1, b1] = await Promise.all([
-    argue('worker', `${record}\n\nGive your opening argument.`),
-    argue('buyer', `${record}\n\nGive your opening argument.`),
+    turn('worker', 'Opening', `${record}\n\nGive your opening argument.`),
+    turn('buyer', 'Opening', `${record}\n\nGive your opening argument.`),
   ]);
-  await step('advocate_worker', 'Opening', w1.argument);
-  await step('advocate_buyer', 'Opening', b1.argument);
 
   const [w2, b2] = await Promise.all([
-    argue('worker', `${record}\n\nThe buyer's advocate argued:\n${b1.argument}\n\nGive your rebuttal.`),
-    argue('buyer', `${record}\n\nThe worker's advocate argued:\n${w1.argument}\n\nGive your rebuttal.`),
+    turn('worker', 'Rebuttal', `${record}\n\nThe buyer's advocate argued:\n${b1.argument}\n\nGive your rebuttal.`),
+    turn('buyer', 'Rebuttal', `${record}\n\nThe worker's advocate argued:\n${w1.argument}\n\nGive your rebuttal.`),
   ]);
-  await step('advocate_worker', 'Rebuttal', w2.argument);
-  await step('advocate_buyer', 'Rebuttal', b2.argument);
 
   const ruling = await ask(RulingSchema, JUDGE,
     `${record}\n\nWorker's advocate:\n${w1.argument}\n${w2.argument}\n\nBuyer's advocate:\n${b1.argument}\n${b2.argument}\n\nIssue your ruling.`,
